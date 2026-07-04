@@ -1,0 +1,500 @@
+{
+  "profile": {
+    "name": "Dedeepya Avancha",
+    "role": "Systems & ML Engineer · CS @ IIIT Bangalore",
+    "tagline": "I build software that respects the machine underneath.",
+    "subTagline": "Lock-free queues, overload control, search ranking, computer vision — built from first principles, measured honestly.",
+    "bioShort": "CS dual-degree student at IIIT Bangalore. I like engineering problems where correctness, performance, and real-world constraints collide — then measuring my way to something better.",
+    "bioLong": "I'm a BTech + MTech dual-degree student in Computer Science at IIIT Bangalore, drawn to the layer of software where design decisions meet hardware reality: cache lines, memory ordering, GC pressure, consumer lag.\n\nAcross my projects the theme is the same — **reason from first principles, measure behavior, improve with evidence**. I've built a lock-free C++ ring buffer that sustains 380M ops/sec, a Kafka backpressure controller that cut p99 latency 88% under overload, and a search engine that ranks 1,185 DSA problems with BM25 I wrote from scratch. At Tectoro I pushed drone defect-detection accuracy from 81% to 92%.\n\nI also write — about performance, distributed systems papers, and occasionally Tolstoy. The common thread: understanding things properly is more fun than pretending to.",
+    "email": "avancha.dedeepya@iiitb.ac.in",
+    "location": "Bangalore, India",
+    "openTo": "Open to internships and research collaborations in systems, infrastructure, and applied ML.",
+    "resumeUrl": "/resume.pdf",
+    "socials": [
+      { "label": "GitHub", "handle": "Dd1235", "url": "https://github.com/Dd1235", "kind": "github" },
+      { "label": "LinkedIn", "handle": "dedeepya-a", "url": "https://www.linkedin.com/in/dedeepya-a-507363217/", "kind": "linkedin" },
+      { "label": "Medium", "handle": "@deepya1235", "url": "https://medium.com/@deepya1235", "kind": "medium" },
+      { "label": "LeetCode", "handle": "eventually_perfect", "url": "https://leetcode.com/u/eventually_perfect/", "kind": "leetcode" },
+      { "label": "Codeforces", "handle": "deepya1235", "url": "https://codeforces.com/profile/deepya1235", "kind": "codeforces" },
+      { "label": "Email", "handle": "avancha.dedeepya@iiitb.ac.in", "url": "mailto:avancha.dedeepya@iiitb.ac.in", "kind": "email" }
+    ],
+    "heroChips": [
+      { "label": "ring buffer", "value": "380M ops/s", "tone": "cyan" },
+      { "label": "handoff", "value": "2.6 ns", "tone": "cyan" },
+      { "label": "kafka p99", "value": "-88%", "tone": "lime" },
+      { "label": "peak lag", "value": "-96%", "tone": "lime" },
+      { "label": "detection", "value": "81→92%", "tone": "amber" },
+      { "label": "BM25 MRR", "value": "+13.5%", "tone": "violet" }
+    ]
+  },
+  "projects": [
+    {
+      "slug": "spsc-ring-buffer",
+      "title": "Lock-Free SPSC Ring Buffer",
+      "subtitle": "Two threads, two atomics, zero locks — 380 million handoffs a second.",
+      "description": "A single-producer single-consumer queue in C++ where threads synchronize through only two atomic indices with acquire–release ordering. No locks, syscalls, or allocations on the hot path.",
+      "stack": ["C++", "Atomics", "CMake", "ThreadSanitizer"],
+      "tags": ["Systems", "Concurrency", "Performance"],
+      "metrics": [
+        { "label": "throughput", "value": "380M ops/s", "tone": "cyan" },
+        { "label": "per handoff", "value": "2.6 ns", "tone": "cyan" },
+        { "label": "vs mutex queue", "value": "13–15×", "tone": "lime" },
+        { "label": "false sharing cost", "value": "3×", "tone": "amber" },
+        { "label": "cached indices win", "value": "2×", "tone": "lime" }
+      ],
+      "diagram": "ring-buffer",
+      "motif": "headtail",
+      "github": "https://github.com/Dd1235/SPSC_Queue",
+      "dates": "Jan – Mar 2026",
+      "story": [
+        {
+          "heading": "The problem",
+          "body": "High-performance systems — audio engines, packet handlers, trading systems — often have one thread producing data and another consuming it continuously. The standard tool is a mutex-protected queue, but mutexes cost kernel calls, scheduling, and blocking. On a latency-critical path that cost dominates the actual work."
+        },
+        {
+          "heading": "The design",
+          "body": "The central bet is scope: **single producer, single consumer, bounded capacity**. Because each index has exactly one writer, there is no compare-and-swap and the fast path is wait-free. Two threads share a fixed circular buffer and coordinate purely through two atomic head/tail indices with acquire–release memory ordering — the weakest ordering that is still provably correct.\n\nStorage is raw memory with placement `new`, so the queue works for non-default-constructible types and object lifetimes are exact. Batch push/pop APIs amortize index publication across many elements."
+        },
+        {
+          "heading": "What the machine taught me",
+          "body": "The headline optimizations were all about memory layout, not algorithms:\n\n- **False sharing**: head and tail on the same cache line made the two cores fight over it — a measured **3× throughput drop**. Padding them to separate cache lines recovered it.\n- **Cached indices**: instead of re-reading the other thread's atomic on every operation, each side keeps a local estimate and refreshes only on apparent-full/empty — a **2× speedup**.\n- **Batching**: publishing the index once per batch instead of per element bought another ~2.8×.\n\nThe final version sustains ~380M ops/sec — 2.6 ns per handoff — roughly 13–15× a mutex-based queue on the same machine."
+        },
+        {
+          "heading": "Correctness, not vibes",
+          "body": "Acquire–release code is easy to get subtly wrong, so the ordering argument is written out by hand and every configuration runs under ThreadSanitizer plus a multi-million-message stress test asserting zero data races, preserved order, and lossless handoff. Compile-time flags toggle each optimization independently so every claim above is an A/B measurement, not a guess."
+        }
+      ],
+      "pinned": true,
+      "visible": true
+    },
+    {
+      "slug": "kafka-backpressure",
+      "title": "Kafka Benchmarking & Backpressure",
+      "subtitle": "What happens when a system receives work faster than it can process it — measured, then fixed.",
+      "description": "A modular Go benchmarking framework for Kafka plus an adaptive backpressure controller that keeps consumer lag bounded under slow-consumer overload.",
+      "stack": ["Go", "Apache Kafka", "Sarama", "zstd/lz4/snappy"],
+      "tags": ["Systems", "Backend", "Distributed"],
+      "metrics": [
+        { "label": "peak lag", "value": "309k → 12k", "tone": "lime" },
+        { "label": "p99 latency", "value": "31.4s → 3.8s", "tone": "lime" },
+        { "label": "delivery", "value": "100%", "tone": "cyan" },
+        { "label": "producer path", "value": "9.9k msg/s", "tone": "cyan" },
+        { "label": "zstd GC pressure", "value": "16×", "tone": "amber" }
+      ],
+      "diagram": "kafka-pipeline",
+      "motif": "gauge",
+      "github": "https://github.com/Dd1235/SSP_kafka",
+      "dates": "Mar – Jun 2026",
+      "story": [
+        {
+          "heading": "The problem",
+          "body": "The classic Kafka operational failure is consumer lag: when consumers can't keep up with producers, backlog grows without bound and end-to-end latency spirals. Under a slow-consumer overload scenario, peak lag hit **309k messages** and p99 latency **31.4 seconds**."
+        },
+        {
+          "heading": "The controller",
+          "body": "I built an adaptive backpressure controller with **separate pause and resume lag thresholds**. A single threshold makes the system ping-pong between pausing and resuming — hysteresis prevents that oscillation. The controller detects the consumer falling behind early, pauses intake, and resumes only once lag has genuinely drained.\n\nResult: peak lag down **96%** (309k → 12k), p99 latency down **88%** (31.4s → 3.8s), with **100% message delivery** maintained."
+        },
+        {
+          "heading": "The benchmarking framework",
+          "body": "To trust those numbers I needed the benchmark itself to never be the bottleneck. The framework is 10 decoupled Go packages with a **lock-free producer path** — per-goroutine AsyncProducers and cache-line-padded atomic counters — sustaining 9.9k msg/s. Every message carries a 16-byte timestamped header so both broker-ack latency and true end-to-end latency are captured separately."
+        },
+        {
+          "heading": "Findings",
+          "body": "Benchmarked across compression codecs, payload types, and burst/recovery workloads. The surprise: **zstd induces ~16× higher GC cycle pressure** than the alternatives — great compression ratio, real runtime cost that most teams never measure. Scope was deliberate: not a production cluster simulation, but a controlled study of overload behavior, backpressure, and benchmarking methodology."
+        }
+      ],
+      "pinned": true,
+      "visible": true
+    },
+    {
+      "slug": "algolens",
+      "title": "AlgoLens",
+      "subtitle": "A search engine for 1,185 DSA problems — four rankers, one interface, every decision benchmarked.",
+      "description": "Search over a curated LeetCode + CSES corpus with TF-IDF, BM25, dense semantic, and hybrid RRF rankers implemented from scratch, plus a Go gRPC BM25 service with bit-exact parity.",
+      "stack": ["Node.js", "Go", "gRPC", "PostgreSQL", "ONNX"],
+      "tags": ["Search", "Backend", "IR"],
+      "metrics": [
+        { "label": "corpus", "value": "1,185 problems", "tone": "cyan" },
+        { "label": "BM25 vs TF-IDF MRR", "value": "+13.5%", "tone": "lime" },
+        { "label": "nDCG@10", "value": "+9.6%", "tone": "lime" },
+        { "label": "rankers", "value": "4 + 1 in Go", "tone": "violet" },
+        { "label": "Node/Go parity", "value": "bit-exact", "tone": "cyan" }
+      ],
+      "diagram": "inverted-index",
+      "motif": "postings",
+      "github": "https://github.com/Dd1235/AlgoLens",
+      "dates": "Apr – May 2026",
+      "story": [
+        {
+          "heading": "The problem",
+          "body": "Keyword search over coding problems is bad. Search \"sliding window with duplicates\" and you want conceptually related problems, not exact word matches. \"Check if brackets open and close in the right order\" never says *parentheses* — lexical search buries valid-parentheses at rank ~77."
+        },
+        {
+          "heading": "The rankers",
+          "body": "Four interchangeable rankers behind one interface, all built from scratch:\n\n- **TF-IDF** — the textbook baseline, with its known weaknesses (unsaturated term frequency, no length normalization).\n- **BM25** — Robertson–Spärck-Jones IDF with smoothing, k1 term-frequency saturation, length normalization, on an inverted index.\n- **Dense** — MiniLM sentence embeddings (quantized ONNX, run in-process), precomputed doc vectors, brute-force cosine scan. At 1,185 docs a linear scan beats any vector database — a deliberate non-decision.\n- **Hybrid** — reciprocal rank fusion of BM25 and dense, because no single ranker wins on every query type.\n\nEach problem is also LLM-annotated with algorithmic patterns so \"interval scheduling greedy\" matches meeting-rooms problems even when the words differ."
+        },
+        {
+          "heading": "Measured, not assumed",
+          "body": "Everything is evaluated against a hand-labeled query set with real IR metrics: BM25 beat TF-IDF by **+13.5% MRR** and **+9.6% nDCG@10**. The honest headline finding: no single ranker wins — the right answer is per-query-type, which is exactly why the hybrid exists."
+        },
+        {
+          "heading": "The polyglot backend",
+          "body": "BM25 is implemented twice — Node.js and a **Go gRPC microservice** — behind a shared interface, with **bit-exact ranking parity** verified across both. Postgres stores per-user state (done/bookmarked) with stable filtered pagination. Optional dependencies degrade gracefully: if the gRPC probe or embedding artifacts are unavailable at boot, the app silently serves the lexical rankers."
+        }
+      ],
+      "pinned": true,
+      "visible": true
+    },
+    {
+      "slug": "mvtec-anomaly",
+      "title": "Anomaly Detection on MVTec AD",
+      "subtitle": "Six approaches to finding defects nobody labeled — AUC 0.44 to 0.99.",
+      "description": "Unsupervised defect detection on the MVTec AD carpet class: pixel autoencoders, deep-feature memory banks, PatchCore, and ViT features, compared on one leaderboard.",
+      "stack": ["PyTorch", "ResNet50", "ViT", "PatchCore"],
+      "tags": ["ML", "Computer Vision"],
+      "metrics": [
+        { "label": "pixel AE", "value": "AUC 0.44", "tone": "amber" },
+        { "label": "ResNet50 + KNN", "value": "AUC 0.74", "tone": "amber" },
+        { "label": "ViT + KNN", "value": "AUC 0.95", "tone": "lime" },
+        { "label": "PatchCore", "value": "AUC 0.98", "tone": "lime" },
+        { "label": "feature-space AE", "value": "AUC 0.99", "tone": "cyan" }
+      ],
+      "diagram": "anomaly-heatmap",
+      "motif": "heatpatch",
+      "github": "https://github.com/Dd1235/TinkerWithCV/tree/main/MVTec_AD",
+      "dates": "2025",
+      "story": [
+        {
+          "heading": "The problem",
+          "body": "Industrial quality inspection rarely has labeled defects — you have thousands of good examples and almost no bad ones. The MVTec AD benchmark captures this: train only on defect-free carpet images, then detect color stains, cuts, holes, metal contamination, and thread defects at test time."
+        },
+        {
+          "heading": "The comparison",
+          "body": "Six approaches on one leaderboard, same data, same metric:\n\n| Approach | AUC |\n|---|---|\n| Pixel-space autoencoder | 0.44 |\n| Skip-AE (MSE/SSIM) | 0.41–0.56 |\n| ResNet50 features + KNN | 0.74 |\n| ViT features + KNN | 0.95 |\n| PatchCore (simplified) | 0.98 |\n| ResNet50 feature-space AE | **0.99** |"
+        },
+        {
+          "heading": "The finding",
+          "body": "Pixel-space reconstruction barely beats a coin flip — autoencoders happily reconstruct defects they've never seen. Moving the *same idea* into a pretrained network's feature space takes AUC from 0.44 to 0.99. The representation matters more than the architecture: deep features already encode \"what normal texture looks like\", so anomalies stand out as reconstruction error there. Visualized with heatmaps, t-SNE plots, and anomaly-score distributions."
+        }
+      ],
+      "pinned": false,
+      "visible": true
+    },
+    {
+      "slug": "euphonia",
+      "title": "Euphonia",
+      "subtitle": "Full songs — music, lyrics, cover art — generated from a text prompt.",
+      "description": "An AI song-generation platform: ACE-Step for composition, Qwen 2 7B for lyrics, SDXL Turbo for cover art, orchestrated as event-driven GPU jobs with real-time UI feedback.",
+      "stack": ["Next.js 15", "React 19", "FastAPI", "Modal", "Inngest", "S3", "Neon Postgres"],
+      "tags": ["GenAI", "Backend", "Full-stack"],
+      "metrics": [
+        { "label": "pipelines", "value": "music + lyrics + art", "tone": "violet" },
+        { "label": "inference", "value": "serverless GPU", "tone": "cyan" },
+        { "label": "jobs", "value": "event-driven", "tone": "lime" }
+      ],
+      "diagram": "waveform",
+      "motif": "waveform",
+      "github": "https://github.com/Dd1235/Euphonia",
+      "dates": "2025",
+      "story": [
+        {
+          "heading": "What it does",
+          "body": "Describe a song; Euphonia generates the full track with ACE-Step, writes lyrics with Qwen 2 7B Instruct, renders album art with SDXL Turbo, and delivers everything via S3 — categorized by mood, genre, and tempo."
+        },
+        {
+          "heading": "The architecture",
+          "body": "GPU inference is slow and expensive, so nothing blocks the user: the frontend submits an event, **Inngest** orchestrates background jobs against **Modal's** serverless GPUs, and the UI streams status in real time. Credits (5 per user) bound the inference bill. The interesting engineering is the async choreography, not the models."
+        }
+      ],
+      "pinned": false,
+      "visible": true
+    },
+    {
+      "slug": "canvasai",
+      "title": "CanvasAI",
+      "subtitle": "An AI learning canvas with a knowledge graph and active recall — built in a weekend, placed 3rd.",
+      "description": "AI-powered learning software combining an interactive canvas, a knowledge graph of what you know, and active-recall prompts. Third place at the LinkedIn CoachIn Hackathon 2026.",
+      "stack": ["TypeScript", "React", "LLM APIs"],
+      "tags": ["ML", "Full-stack", "Hackathon"],
+      "metrics": [
+        { "label": "LinkedIn CoachIn 2026", "value": "3rd place", "tone": "amber" }
+      ],
+      "motif": "canvas",
+      "github": "https://github.com/Dd1235/CanvasAI",
+      "dates": "2026",
+      "award": "3rd Place — LinkedIn CoachIn Hackathon 2026",
+      "story": [
+        {
+          "heading": "The idea",
+          "body": "Learning tools optimize for consumption; CanvasAI optimizes for retention. An interactive canvas where you work through material, a knowledge graph that tracks concepts you've actually demonstrated, and active-recall prompts generated from your own gaps."
+        }
+      ],
+      "pinned": false,
+      "visible": true
+    },
+    {
+      "slug": "distributed-kv",
+      "title": "Distributed Key-Value Store",
+      "subtitle": "Learning replication and consistency by building the thing.",
+      "description": "A work-in-progress distributed key-value database in Go — an exercise in replication, consistency, and the parts of distributed systems papers you only understand by implementing.",
+      "stack": ["Go"],
+      "tags": ["Systems", "Distributed"],
+      "metrics": [],
+      "motif": "kv",
+      "github": "https://github.com/Dd1235/Distributed-Key-Value-Database",
+      "dates": "Ongoing",
+      "story": [],
+      "pinned": false,
+      "visible": true
+    },
+    {
+      "slug": "neural-net",
+      "title": "Neural Net — Synergy Winner",
+      "subtitle": "Winner of IIIT Bangalore's flagship techfest hackathon, Neural Net track (2025).",
+      "description": "Hackathon-winning build from Synergy 2025, IIIT Bangalore's flagship techfest — Neural Net track.",
+      "stack": ["TypeScript"],
+      "tags": ["ML", "Hackathon"],
+      "metrics": [
+        { "label": "Synergy 2025", "value": "Winner", "tone": "amber" }
+      ],
+      "motif": "trophy",
+      "github": "https://github.com/Dd1235/Neural-Net",
+      "dates": "2025",
+      "award": "Winner — Synergy 2025, Neural Net track",
+      "story": [],
+      "pinned": false,
+      "visible": true
+    }
+  ],
+  "blogs": [
+    {
+      "slug": "spsc-tradeoffs",
+      "title": "Every Decision Is a Tradeoff: Notes from Building a Lock-Free Queue",
+      "source": "local",
+      "excerpt": "Almost every decision in my SPSC ring buffer has the same shape: trade generality away to buy simplicity, speed, or provability. Here is the full ledger — what each choice gained, and what it paid.",
+      "body": "Almost every decision in my [SPSC ring buffer](https://github.com/Dd1235/SPSC_Queue) has the same shape: **trade generality away to buy simplicity, speed, or provability.** Once I noticed the pattern, I started keeping a ledger. Here it is — each choice as *what you gained* vs. *what you paid*.\n\n## The scoping tradeoffs (the big ones)\n\n### SPSC only, not MPMC — the central bet\n\n**Gained:** each index has exactly one writer, so there is no compare-and-swap, so the fast path is *wait-free* and the code is simple enough to prove correct by hand.\n\n**Paid:** generality. Two producers isn't a tuning knob — it's undefined behavior. A general MPMC queue needs CAS loops, per-slot sequence numbers, and ABA handling, and even then it's only lock-free, not wait-free.\n\n### Bounded, not unbounded\n\n**Gained:** no per-element allocation, and — crucially — no memory-reclamation problem. Slots are reused in place, never freed mid-flight, so no hazard pointers, no RCU, no epochs.\n\n**Paid:** the queue can be full. I turned that cost into a feature (`try_push` returns `false`, the caller picks the policy), but it *is* a cost: the caller now owns backpressure.\n\n### Array, not linked list\n\n**Gained:** cache locality, integer indices you can make atomic cheaply, no node surgery.\n\n**Paid:** it can't grow, and you pay for the whole buffer up front.\n\n## The performance-vs-something tradeoffs\n\n### Cache-line padding (`alignas(128)`)\n\n**Gained:** ~3× throughput. Head and tail on the same cache line means the producer's core and the consumer's core fight over it on every operation — false sharing.\n\n**Paid:** memory. Each queue object is ~384 bytes even at capacity 1. A million tiny queues would feel that.\n\n### Hardcoded 128-byte lines, not `std::hardware_destructive_interference_size`\n\n**Gained:** stable layout across compilers, correct on Apple M2, no GCC warning.\n\n**Paid:** on a genuine 64-byte machine you over-pad, and 128 is an educated guess that exotic hardware could invalidate (mitigated with an override macro).\n\n### Acquire–release, not seq_cst\n\n**Gained:** cheaper fences, especially on ARM.\n\n**Paid:** much harder to reason about, and easier to get subtly wrong. I bought that risk back with a written happens-before proof plus ThreadSanitizer — but choosing the *weakest sufficient* ordering is a real cognitive cost, and I'd defend seq_cst as a starting point for anyone's first attempt.\n\n### Cached index optimization\n\n**Gained:** ~2× on queues that aren't pinned at the full/empty boundary. Each side keeps a local estimate of the other's index and only refreshes on apparent-full or apparent-empty, eliminating most cross-core traffic.\n\n**Paid:** extra members, an extra branch — and it slightly *hurts* at tiny capacities (I measured the inversion). Workload-dependent, not a free win.\n\n### Branch wraparound, not power-of-two + mask\n\n**Gained:** arbitrary capacities — ask for 1000, get 1000.\n\n**Paid:** a branch instead of a single `& (n-1)`, so a hair slower per wrap. I gave up the fastest known trick for a friendlier API.\n\n### Batch APIs\n\n**Gained:** ~2.8× — one index publication per batch instead of per element.\n\n**Paid:** a `noexcept` copy/move requirement (throwing types are rejected), partial-transfer semantics the caller must handle, and a caller-provided buffer.\n\n### Raw storage + placement new\n\n**Gained:** works for non-default-constructible types, no eager construction, precise object lifetimes.\n\n**Paid:** manual lifetime management — destroy on pop, destructor sweeps leftovers — which is exactly the kind of code that's wrong until tested (I bought it back with live-instance-counting tests), plus the `std::launder` subtlety.\n\n## The process tradeoff\n\n### Build my own vs. use rigtorp's or Folly's\n\n**Gained:** deep understanding, and a template parameter for every optimization so each claim in the benchmark table is an A/B measurement on the same source.\n\n**Paid:** it isn't production-hardened, and the honest line is that I wouldn't ship it over a battle-tested implementation. But that was never the point.\n\n## The pattern\n\nNone of these are clever tricks. They're the same move repeated: **narrow the problem until the correct solution is also the fast one.** The queue is fast *because* it refuses to be general. That, more than any individual optimization, is what the project taught me.",
+      "tags": ["Systems", "C++", "Performance"],
+      "readingTime": 7,
+      "date": "2026-07-01",
+      "featured": true,
+      "visible": true,
+      "relatedProjects": ["spsc-ring-buffer"]
+    },
+    {
+      "slug": "most-useful-variable",
+      "title": "The Most Useful Variable in My Program Stores Nothing",
+      "source": "medium",
+      "url": "https://medium.com/@deepya1235/the-most-useful-variable-in-my-program-stores-nothing-fee5942895f4",
+      "excerpt": "Performance is not just about algorithms — sometimes the variable doing the most work is the one that holds no data at all.",
+      "tags": ["Systems", "Performance"],
+      "readingTime": 6,
+      "date": "2026-06-13",
+      "featured": true,
+      "visible": true,
+      "relatedProjects": ["spsc-ring-buffer"]
+    },
+    {
+      "slug": "analog-skill-digital-scoreboard",
+      "title": "Analog Skill, Digital Scoreboard",
+      "source": "medium",
+      "url": "https://medium.com/@deepya1235/analog-skill-digital-scoreboard-72ee61de1676",
+      "excerpt": "On competitive programming, Codeforces ratings, and what the scoreboard does and doesn't measure.",
+      "tags": ["Competitive Programming", "DSA"],
+      "readingTime": 5,
+      "date": "2026-04-24",
+      "featured": false,
+      "visible": true,
+      "relatedProjects": ["algolens"]
+    },
+    {
+      "slug": "kafka-white-paper-review",
+      "title": "Kafka White Paper Review",
+      "source": "medium",
+      "url": "https://medium.com/@deepya1235/kafka-white-paper-review-9ff22b33f6f0",
+      "excerpt": "Reading the original Kafka paper through the lens of a YouTube-like service — why the log abstraction won.",
+      "tags": ["Distributed Systems", "Kafka", "Papers"],
+      "readingTime": 8,
+      "date": "2025-10-26",
+      "featured": true,
+      "visible": true,
+      "relatedProjects": ["kafka-backpressure"]
+    },
+    {
+      "slug": "kafka-shame-metamorphosis",
+      "title": "Would You Still Love Me if I Were a Bug? — On Kafka, Shame, and The Metamorphosis",
+      "source": "medium",
+      "url": "https://medium.com/@deepya1235/would-you-still-love-me-if-i-were-a-bug-on-kafka-shame-and-the-metamorphosis-8ef1aa601e16",
+      "excerpt": "The other Kafka. On shame, family, and what The Metamorphosis actually asks of its reader.",
+      "tags": ["Beyond Code", "Essays"],
+      "readingTime": 6,
+      "date": "2025-08-15",
+      "featured": false,
+      "visible": true,
+      "relatedProjects": []
+    },
+    {
+      "slug": "death-of-ivan-ilyich",
+      "title": "Reflections: The Death of Ivan Ilyich",
+      "source": "medium",
+      "url": "https://medium.com/@deepya1235/reflections-the-death-of-ivan-ilyich-5f48298ada0b",
+      "excerpt": "Tolstoy's novella about a life lived correctly and wrongly at the same time.",
+      "tags": ["Beyond Code", "Essays"],
+      "readingTime": 5,
+      "date": "2025-08-14",
+      "featured": false,
+      "visible": true,
+      "relatedProjects": []
+    },
+    {
+      "slug": "superman-reflections",
+      "title": "Reflections on the Superman Movie",
+      "source": "medium",
+      "url": "https://medium.com/@deepya1235/reflections-on-the-superman-movie-282d889df405",
+      "excerpt": "Personal reflections, with jokes.",
+      "tags": ["Beyond Code"],
+      "readingTime": 4,
+      "date": "2025-07-19",
+      "featured": false,
+      "visible": true,
+      "relatedProjects": []
+    },
+    {
+      "slug": "black-or-white",
+      "title": "Everything Feels So Black or White",
+      "source": "medium",
+      "url": "https://medium.com/@deepya1235/everything-feels-so-black-or-white-c8a830472a76",
+      "excerpt": "A personal reflection on binary thinking.",
+      "tags": ["Beyond Code"],
+      "readingTime": 4,
+      "date": "2025-04-10",
+      "featured": false,
+      "visible": true,
+      "relatedProjects": []
+    }
+  ],
+  "experience": [
+    {
+      "role": "Machine Learning Intern",
+      "org": "Tectoro Consulting Pvt. Ltd.",
+      "dates": "May – Jul 2025",
+      "location": "Hyderabad, India",
+      "summary": "Drone-based defect detection: benchmarked real-time detectors and pushed accuracy from 81% to 92%.",
+      "bullets": [
+        "Built an evaluation pipeline comparing RT-DETR, YOLOv8, and YOLOv9 on drone imagery with consistent metrics, selecting the best architecture for defect detection.",
+        "Improved detection accuracy from 81% to 92% using YOLOv9 with image slicing — tiling high-resolution frames into overlapping crops so small objects survive downscaling — plus optimized inference.",
+        "Key lesson: for real-world CV, preprocessing and inference strategy matter as much as the architecture."
+      ],
+      "motif": "tiles"
+    },
+    {
+      "role": "Teaching Assistant — Linear Algebra",
+      "org": "IIIT Bangalore",
+      "dates": "Aug – Dec 2025",
+      "location": "Bangalore, India",
+      "summary": "Ran weekly tutorial sessions and graded exams for the undergraduate Linear Algebra course.",
+      "bullets": [
+        "Mentored students through weekly tutorial sessions — eigenvalues explained until they actually clicked.",
+        "Graded exams and helped design tutorial problem sets."
+      ],
+      "motif": "matrix"
+    }
+  ],
+  "education": [
+    {
+      "school": "International Institute of Information Technology, Bangalore",
+      "degree": "BTech + MTech (Dual Degree), Computer Science and Engineering",
+      "dates": "Aug 2023 – Jul 2028 (expected)",
+      "gpa": "9.3 / 10.0",
+      "details": "Dean's Merit List Scholarship (2024–25). Coursework spanning systems, algorithms, ML, and HPC."
+    }
+  ],
+  "achievements": [
+    {
+      "title": "3rd Place — LinkedIn CoachIn Hackathon",
+      "detail": "Built CanvasAI: AI-powered learning software with an interactive canvas, knowledge graph, and active recall.",
+      "year": "2026",
+      "motif": "trophy"
+    },
+    {
+      "title": "Winner — Synergy, Neural Net track",
+      "detail": "IIIT Bangalore's flagship techfest hackathon.",
+      "year": "2025",
+      "motif": "trophy"
+    },
+    {
+      "title": "Dean's Merit List Scholarship",
+      "detail": "₹50,000 tuition fee waiver for academic excellence.",
+      "year": "2024–25",
+      "motif": "medal"
+    },
+    {
+      "title": "3rd Place — Hacknite Hackathon",
+      "detail": "IIIT Bangalore.",
+      "year": "2024",
+      "motif": "trophy"
+    }
+  ],
+  "skillGroups": [
+    {
+      "name": "Languages",
+      "tone": "cyan",
+      "skills": [
+        { "name": "C++", "level": 92, "note": "atomics, memory model, templates" },
+        { "name": "Python", "level": 90, "note": "PyTorch, pipelines" },
+        { "name": "Go", "level": 85, "note": "concurrency, gRPC" },
+        { "name": "JavaScript / TypeScript", "level": 80, "note": "Node.js, React" },
+        { "name": "SQL", "level": 74, "note": "PostgreSQL" },
+        { "name": "Java", "level": 62, "note": "JVM internals curious" }
+      ]
+    },
+    {
+      "name": "Systems",
+      "tone": "lime",
+      "skills": [
+        { "name": "Concurrency & lock-free structures", "level": 88, "note": "acquire-release, false sharing" },
+        { "name": "Benchmarking & profiling", "level": 86, "note": "measure first" },
+        { "name": "Kafka & messaging", "level": 80, "note": "backpressure, lag control" },
+        { "name": "Operating systems", "level": 76, "note": "coursework + labs" },
+        { "name": "Databases", "level": 74, "note": "Postgres, indexing" }
+      ]
+    },
+    {
+      "name": "ML & Search",
+      "tone": "violet",
+      "skills": [
+        { "name": "Computer vision", "level": 84, "note": "detection, anomaly detection" },
+        { "name": "Information retrieval", "level": 82, "note": "BM25, embeddings, RRF" },
+        { "name": "PyTorch", "level": 80, "note": "training + evaluation" },
+        { "name": "LangChain / LangGraph", "level": 70, "note": "agentic pipelines" }
+      ]
+    }
+  ],
+  "dsaProfiles": [
+    {
+      "platform": "LeetCode",
+      "handle": "eventually_perfect",
+      "url": "https://leetcode.com/u/eventually_perfect/",
+      "note": "The handle is the philosophy."
+    },
+    {
+      "platform": "Codeforces",
+      "handle": "deepya1235",
+      "url": "https://codeforces.com/profile/deepya1235",
+      "note": "Contests as deliberate practice — analog skill, digital scoreboard."
+    }
+  ],
+  "coursework": [
+    "Data Structures & Algorithms",
+    "Design & Analysis of Algorithms",
+    "Operating Systems",
+    "Database Systems",
+    "Computer Networks",
+    "Machine Learning",
+    "Introduction to Optimization",
+    "Network-based Computing for HPC & AI",
+    "Software Engineering",
+    "Automata Theory & Computability",
+    "Computer Architecture",
+    "Discrete Mathematics"
+  ]
+}
