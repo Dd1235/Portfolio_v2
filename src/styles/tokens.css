@@ -1,0 +1,93 @@
+/* ---------- Design tokens ---------- */
+:root {
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-body: "Inter", system-ui, sans-serif;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --maxw: 1120px;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Dark — the primary "wow" mode */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0a0e14;
+  --bg-2: #0d121b;
+  --bg-3: #111826;
+
+  --panel: rgba(148, 163, 184, 0.055);
+  --panel-strong: rgba(148, 163, 184, 0.09);
+  --glass-blur: 14px;
+
+  --ink: #e8eef5;
+  --ink-dim: #9aa7b6;
+  --ink-faint: #5c6875;
+
+  --line: rgba(148, 163, 184, 0.14);
+  --line-strong: rgba(148, 163, 184, 0.26);
+
+  --cyan: #53d7e8;
+  --lime: #a5e26b;
+  --amber: #f2b45f;
+  --violet: #b89bf0;
+  --red: #f07178;
+
+  --cyan-soft: rgba(83, 215, 232, 0.13);
+  --lime-soft: rgba(165, 226, 107, 0.13);
+  --amber-soft: rgba(242, 180, 95, 0.13);
+  --violet-soft: rgba(184, 155, 240, 0.14);
+
+  --glow-cyan: 0 0 24px rgba(83, 215, 232, 0.18);
+  --grid-dot: rgba(148, 163, 184, 0.13);
+  --grid-line: rgba(148, 163, 184, 0.05);
+  --scan: rgba(83, 215, 232, 0.045);
+
+  --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  --diagram-bg: rgba(148, 163, 184, 0.04);
+}
+
+/* Light — research notebook / engineering diagram */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f7f5ef;
+  --bg-2: #f1eee6;
+  --bg-3: #eae6dc;
+
+  --panel: rgba(26, 35, 48, 0.028);
+  --panel-strong: rgba(26, 35, 48, 0.055);
+  --glass-blur: 10px;
+
+  --ink: #1b2431;
+  --ink-dim: #4c5867;
+  --ink-faint: #8a93a0;
+
+  --line: rgba(26, 35, 48, 0.13);
+  --line-strong: rgba(26, 35, 48, 0.26);
+
+  --cyan: #0e7e90;
+  --lime: #4f7d1e;
+  --amber: #a86a10;
+  --violet: #6a4bbf;
+  --red: #b3383f;
+
+  --cyan-soft: rgba(14, 126, 144, 0.09);
+  --lime-soft: rgba(79, 125, 30, 0.1);
+  --amber-soft: rgba(168, 106, 16, 0.1);
+  --violet-soft: rgba(106, 75, 191, 0.09);
+
+  --glow-cyan: none;
+  --grid-dot: rgba(26, 35, 48, 0.1);
+  --grid-line: rgba(26, 35, 48, 0.045);
+  --scan: rgba(14, 126, 144, 0.03);
+
+  --card-shadow: 0 4px 18px rgba(26, 35, 48, 0.07);
+  --diagram-bg: rgba(26, 35, 48, 0.025);
+}
