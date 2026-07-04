@@ -7,9 +7,9 @@ const POSTINGS: Record<string, number[]> = {
   duplicates: [2, 3, 7],
 };
 const RESULTS = [
-  { name: "longest-substring-no-repeat", score: 0.94 },
-  { name: "sliding-window-maximum", score: 0.81 },
-  { name: "contains-duplicate-ii", score: 0.66 },
+  { name: "longest-substr-no-repeat", score: 0.94 },
+  { name: "sliding-window-max", score: 0.81 },
+  { name: "contains-dup-ii", score: 0.66 },
 ];
 
 /** Query terms lighting up postings lists → BM25-ranked results. */
@@ -68,8 +68,8 @@ export default function InvertedIndex({ compact = false }: { compact?: boolean }
         <text x="14" y="163" fontSize="10" fill="var(--ink-faint)">bm25 top-k</text>
         {RESULTS.map((r, i) => (
           <g key={r.name}>
-            <rect x="110" y={152 + i * 15} width={330 * r.score} height="10" rx="3" fill={i === 0 ? "var(--lime)" : "var(--violet)"} opacity={1 - i * 0.28} />
-            <text x={118 + 330 * r.score} y={161 + i * 15} fontSize="8.5" fill="var(--ink-dim)">
+            <rect x="110" y={152 + i * 15} width={230 * r.score} height="10" rx="3" fill={i === 0 ? "var(--lime)" : "var(--violet)"} opacity={1 - i * 0.28} />
+            <text x="348" y={161 + i * 15} fontSize="8.5" fill="var(--ink-dim)">
               {r.name} · {r.score.toFixed(2)}
             </text>
           </g>

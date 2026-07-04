@@ -50,7 +50,7 @@ export default function AnomalyHeatmap({ compact = false }: { compact?: boolean 
           })
         )}
         <text x="14" y="158" fontSize="10" fill="var(--ink-faint)">
-          feature-space reconstruction error · carpet/defect
+          reconstruction error · carpet
         </text>
         <text x="300" y="158" fontSize="12" fontWeight="600" fill={frac >= 1 ? "var(--lime)" : "var(--amber)"}>
           AUC {auc}

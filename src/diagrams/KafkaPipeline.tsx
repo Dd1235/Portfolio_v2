@@ -14,7 +14,7 @@ export default function KafkaPipeline({ compact = false }: { compact?: boolean }
   const paused = phase >= 10 && phase <= 16;
   const lag = phase < 10 ? 2 + phase : phase <= 16 ? 12 - (phase - 10) * 1.6 : 2;
   const lagFrac = Math.max(0.05, Math.min(1, lag / 12));
-  const state = paused ? "PAUSED · backpressure" : phase < 10 ? "FLOWING · lag rising" : "FLOWING · recovered";
+  const state = paused ? "PAUSED" : phase < 10 ? "RISING" : "OK";
 
   const dotXs = [0, 1, 2, 3].map((i) => 88 + (((tick * 14 + i * 38) % 130)));
 

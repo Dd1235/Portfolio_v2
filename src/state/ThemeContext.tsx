@@ -11,6 +11,8 @@ const STORAGE_KEY = "portfolio-theme";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
+    const param = new URLSearchParams(window.location.search).get("theme");
+    if (param === "light" || param === "dark") return param;
     const saved = localStorage.getItem(STORAGE_KEY);
     return saved === "light" ? "light" : "dark";
   });
